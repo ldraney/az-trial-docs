@@ -1,4 +1,4 @@
-# Azure Free Trial Day 1 - Create a Resource Group and Virtual Machine
+# Day 1 - Create a Resource Group and Virtual Machine.md
 
 You just made a new Azure account with $200 credits for the next month! Exciting!  
 How can you best utilize these credits for learning and setting up your business?  
