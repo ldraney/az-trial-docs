@@ -1,0 +1,25 @@
+name: Delete Azure Resource Group
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group_name:
+        description: "Name of the resource group to delete"
+        required: true
+        type: string
+
+jobs:
+  delete-resource-group:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Resource Group
+        run: |
+          az group delete --name ${{ github.event.inputs.resource_group_name }} --yes --no-wait
