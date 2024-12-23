@@ -1,4 +1,4 @@
-name: Test Azure Connection
+name: List Resource Groups
 
 on: [workflow_dispatch]
 
