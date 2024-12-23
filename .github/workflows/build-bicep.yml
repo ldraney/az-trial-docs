@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - day-2
   pull_request:
     branches:
       - main
@@ -18,25 +18,11 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v3
 
-    - name: Set up Azure CLI
-      uses: azure/CLI@v1
-
-    - name: Install Bicep CLI
-      run: |
-        az bicep install
-        az bicep upgrade
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Build Bicep Files
       run: |
-        mkdir -p arm_templates
-        for bicep_file in $(find . -name "*.bicep"); do
-          output_file="arm_templates/$(basename "$bicep_file" .bicep).json"
-          echo "Building $bicep_file -> $output_file"
-          az bicep build --file "$bicep_file" --out "$output_file"
-        done
-
-    - name: Upload ARM Templates as Artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: arm-templates
-        path: arm_templates
+        az bicep build --file az-trial-infra/main.bicep
