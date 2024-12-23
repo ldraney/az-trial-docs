@@ -25,4 +25,4 @@ jobs:
 
     - name: Build Bicep Files
       run: |
-        az bicep build 
+        az bicep build --file main.bicep
