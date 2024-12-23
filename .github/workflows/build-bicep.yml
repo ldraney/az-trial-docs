@@ -17,13 +17,12 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v3
 
-    - name: Set up Azure CLI
-      uses: azure/CLI@v1
-
-    - name: Install Bicep CLI
-      run: |
-        az bicep install
-        az bicep upgrade
+    - name: Azure CLI script
+      uses: azure/cli@v2
+      with:
+        azcliversion: latest
+        inlineScript: |
+          az account show
 
     - name: Build Bicep Files
       run: |
