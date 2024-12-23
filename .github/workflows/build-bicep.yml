@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - day-2
   pull_request:
     branches:
       - main
@@ -25,4 +25,4 @@ jobs:
 
     - name: Build Bicep Files
       run: |
-        az bicep build --file main.bicep
+        az bicep build --file az-trial-infra/main.bicep
