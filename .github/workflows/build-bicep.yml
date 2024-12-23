@@ -1,0 +1,41 @@
+name: Build Bicep Templates
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Bicep Files
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Azure CLI
+      uses: azure/CLI@v1
+
+    - name: Install Bicep CLI
+      run: |
+        az bicep install
+        az bicep upgrade
+
+    - name: Build Bicep Files
+      run: |
+        mkdir -p arm_templates
+        for bicep_file in $(find . -name "*.bicep"); do
+          output_file="arm_templates/$(basename "$bicep_file" .bicep).json"
+          echo "Building $bicep_file -> $output_file"
+          az bicep build --file "$bicep_file" --out "$output_file"
+        done
+
+    - name: Upload ARM Templates as Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: arm-templates
+        path: arm_templates
