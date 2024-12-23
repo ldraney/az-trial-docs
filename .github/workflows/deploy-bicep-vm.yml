@@ -1,0 +1,23 @@
+name: Deploy Bicep VM
+
+on: [workflow_dispatch]
+
+jobs:
+  deploy-bicep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy VM via Bicep
+        run: |
+          az deployment group create \
+            --resource-group MyResourceGroup \
+            --template-file ./main.bicep \
+            --parameters location="eastus" \
+                         vmName="MyBicepVM"
