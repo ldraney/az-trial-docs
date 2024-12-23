@@ -1,53 +1,31 @@
-@description('Name of the Resource Group.')
+@allowed([
+  'nonprod'
+  'prod'
+])
+param environmentType string
+
+@description('Name of the Resource Group')
 param resourceGroupName string
 
-@description('Location for all resources.')
-param location string
+@description('Location of the Resource Group - by default, deploy all resources into the same location in which the resource group was created')
+param resourceGroupLocation string = resourceGroup().location
 
-@description('Name of the Virtual Machine.')
-param vmName string
+@description('Storage Account Name')
+param storageAccountName string = uniqueString(resourceGroup().id)
 
-@description('Admin username for the Virtual Machine.')
-param adminUsername string
-
-@secure()
-@description('Admin password for the Virtual Machine.')
-param adminPassword string
-
-resource myResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
+resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: resourceGroupName
-  location: location
+  location: resourceGroupLocation
 }
 
-resource myVM 'Microsoft.Compute/virtualMachines@2022-03-01' = {
-  name: vmName
-  location: myResourceGroup.location
-  dependsOn: [
-    myResourceGroup
-  ]
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+  name: storageAccountName
+  location: rg.location
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
   properties: {
-    hardwareProfile: {
-      vmSize: 'Standard_B1s'
-    }
-    storageProfile: {
-      imageReference: {
-        publisher: 'Canonical'
-        offer: '0001-com-ubuntu-server-jammy'
-        sku: '22_04-lts'
-        version: 'latest'
-      }
-    }
-    osProfile: {
-      computerName: vmName
-      adminUsername: adminUsername
-      adminPassword: adminPassword
-    }
-    networkProfile: {
-      networkInterfaces: [
-        {
-          id: resourceId('Microsoft.Network/networkInterfaces', 'myVMNic')
-        }
-      ]
-    }
+    accessTier: 'Hot'
   }
 }
