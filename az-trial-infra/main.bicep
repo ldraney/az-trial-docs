@@ -21,7 +21,7 @@ resource myVM 'Microsoft.Compute/virtualMachines@2022-03-01' = {
     }
     osProfile: {
       computerName: vmName
-      adminUsername: 'azureuser'
+      adminUsername: 'nameduser'
       adminPassword: 'ReplaceWithASecurePassword#123' // For example only—use Key Vault in real scenarios
     }
     networkProfile: {
