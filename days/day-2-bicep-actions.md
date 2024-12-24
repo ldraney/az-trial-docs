@@ -44,7 +44,7 @@ To allow GitHub Actions to interact with your Azure subscription, you’ll need 
    az ad sp create-for-rbac \
      --name "github-actions-sp" \
      --role contributor \
-     --scopes /subscriptions/<YOUR_SUBSCRIPTION_ID> \
+     --scopes /subscriptions/c7f59316-eb4d-431f-83d0-0dff4a6531db \
      --sdk-auth
    ```
 
@@ -71,8 +71,14 @@ To allow GitHub Actions to interact with your Azure subscription, you’ll need 
 
 If you used the `--role contributor` flag above, your Service Principal has rights to create and manage resources. If you need more/less access, you could use roles like **Reader**, **Owner**, or custom roles. Adjust as needed.
 
+### Create an infra repo
+
+Go to https://github.com/ldraney/az-trial-infra/tree/0.0.0.1-DEC-23-2024.  
+Use it as a template and create your own repo.
+
 ### Storing Credentials in GitHub Secrets
 
+Then, you need to add the json object from earlier, and store it so our GA workflows can contact our Azure subscription:
 1. Go to your **GitHub Repository** settings.  
 2. Click on **Secrets and variables** > **Actions**.  
 3. Create a **New repository secret** named `AZURE_CREDENTIALS`.  
@@ -89,34 +95,35 @@ Before we start deploying fancy resources, let’s verify that GitHub Actions ca
 
 ### Creating the GitHub Actions Workflow
 
-1. In your repository, navigate to **Actions**.
-2. Click **New workflow** (or **Set up a workflow yourself**).
-3. Create a file named `.github/workflows/test-azure-connection.yml` (for example).
-4. Add the following content:
+Let's create a list-resource-groups.yml (there should already be one in your .github/workflows directory)
 
-   ```yaml
-   name: Test Azure Connection
+```yaml
+name: Test Azure Connection
 
-   on: [workflow_dispatch]
+on: [workflow_dispatch]
 
-   jobs:
-     test-connection:
-       runs-on: ubuntu-latest
-       steps:
-         - name: Checkout
-           uses: actions/checkout@v3
+jobs:
+  test-connection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
 
-         - name: Azure Login
-           uses: azure/login@v1
-           with:
-             creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-         - name: Show Subscriptions
-           run: |
-             az account show
-   ```
+      # validate and list relevant info
+      - name: Show Subscription Name
+        run: |
+          az account show --query "{SubscriptionName:name}" -o json
 
-### Confirming Connectivity
+      - name: Show Available Resource Groups
+        run: |
+          az group list --query "[].name" -o table
+
+```
 
 1. Commit and push your workflow file to the repository.  
 2. Go to the **Actions** tab, select **Test Azure Connection**, and run the workflow manually (click **Run workflow**).  
@@ -133,150 +140,15 @@ If we need to get more specific with configurations, we can consider ARM templat
 
 Why Bicep or ARM over Terraform or other solutions?  All solutions will need to use the Azure Resource Manager's API to control Azure infrastructure, so preference based on familiarity is appropriate here.  I like to stick within the Microsoft ecosystem unless the value of an external option obviously outweighs Microsoft's integrated systems.  
 
-## Github Workflow to Deploy a RG and VM with Bicep
-
-Now that we know the connection works, let's make a new workflow that allows us deploy resources:
-
-Let's make a workflow file, say `.github/workflows/deploy-bicep-vm.yml`, and enter the following:
-
-```yaml
-name: Deploy Bicep VM with Resource Group
-
-on: [workflow_dispatch]
-
-jobs:
-  deploy-bicep:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy Resources via Bicep
-        run: |
-          az deployment group create \
-            --resource-group MyResourceGroup \
-            --template-file ./main.bicep \
-            --parameters ./main.parameters.json
-```
-
-After pushing and running this workflow, you should see a resource group with your new VM in the Azure portal; however, we are not yet ready for that. 
-
-There is one more useful workflow for us to create that allows us to view the ARM templates our Bicep will create.  To understand what I'm talking about, it may be worthwhile to play with Bicep and see the ARM templates it generates, go to https://aka.ms/bicepdemo.  
-
-Here is the [[GA Workflow for Building Bicep]].  This workflow will allow us to validate and check the templates that Bicep sends to Azure Resource Manager.  This is useful as our app gets more complex and we need to check or adjust configurations. 
-
-### Deploying a VM with Bicep
-
-We’re going to create a **Bicep** file (`main.bicep`) that defines a VM resource. This is similar to Day 1’s approach, but in code form.
-
-> **Sample `main.bicep`:**  
-
-```bicep
-@description('Name of the Resource Group.')
-param resourceGroupName string
-
-@description('Location for all resources.')
-param location string
-
-@description('Name of the Virtual Machine.')
-param vmName string
-
-@description('Admin username for the Virtual Machine.')
-param adminUsername string
-
-@secure()
-@description('Admin password for the Virtual Machine.')
-param adminPassword string
-
-resource myResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
-  name: resourceGroupName
-  location: location
-}
-
-resource myVM 'Microsoft.Compute/virtualMachines@2022-03-01' = {
-  name: vmName
-  location: myResourceGroup.location
-  dependsOn: [
-    myResourceGroup
-  ]
-  properties: {
-    hardwareProfile: {
-      vmSize: 'Standard_B1s'
-    }
-    storageProfile: {
-      imageReference: {
-        publisher: 'Canonical'
-        offer: '0001-com-ubuntu-server-jammy'
-        sku: '22_04-lts'
-        version: 'latest'
-      }
-    }
-    osProfile: {
-      computerName: vmName
-      adminUsername: adminUsername
-      adminPassword: adminPassword
-    }
-    networkProfile: {
-      networkInterfaces: [
-        {
-          id: resourceId('Microsoft.Network/networkInterfaces', 'myVMNic')
-        }
-      ]
-    }
-  }
-}
-```
-
-**Key Features**
-- myResourceGroup: Declares the resource group.
-- Dependency Management: Bicep ensures myResourceGroup is created before myVM because of the dependsOn property (implicitly handled when referencing myResourceGroup.location but explicitly added here for clarity).
-
-### Parameters file
-Here's the matching main.parameters.json:
-```json
-{
-  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
-  "contentVersion": "1.0.0.0",
-  "parameters": {
-    "resourceGroupName": {
-      "value": "MyResourceGroup"
-    },
-    "location": {
-      "value": "eastus"
-    },
-    "vmName": {
-      "value": "MyBicepVM"
-    },
-    "adminUsername": {
-      "value": "myAdminUser"
-    },
-    "adminPassword": {
-      "value": "ReplaceWithSecurePassword123!"
-    }
-  }
-}
-```
+## Github Workflow to Deploy a RG 
+In the template repo you copied above, there is a workflow `.github/workflows/create-resource-group.yml`.  We will be using this to create a resource group.  
+In the Actions tab, go to the workflow that says 'Create Azure Resource Group', and choose your name.  I chose 'dev'.  
 
 
-After pushing and running this workflow, you should see a resource group with your new VM in the Azure portal!
+## Deploying a Storage Account
 
-### **How It Works**
-1. **Resource Group Managed by Bicep**:
-   - The `myResourceGroup` declaration in the Bicep file ensures that the resource group is created automatically if it doesn’t already exist.
-   - If the group exists, Bicep skips creation and proceeds to deploy other resources.
-   
-2. **Simplified Workflow**:
-   - No need for a separate `az group create` step, reducing manual effort.
-   - Bicep takes care of the resource creation order.
 
-3. **Better Maintainability**:
-   - All infrastructure logic (resource group, VM, etc.) is defined in one place (Bicep).
-   - Easier to replicate and manage deployments in different environments.
+
 
 ### Test the workflow by running it in your GitHub Actions.
 
