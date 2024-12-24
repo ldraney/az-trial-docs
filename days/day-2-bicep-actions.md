@@ -1,101 +1,82 @@
-# Day 2 - Bicep Filetree and GitHub Actions
+# **Day 2 - Bicep Filetree and GitHub Actions**
 
-## Introduction
-
-In my previous post, I forgot before we deploy a minimal architecture, we need to set up our GitHub Actions!  Apologies!  
-
-So, for **Day 2**, we’re integrating GitHub and Azure to automate deployments using GitHub Actions (GAs). The goal is to keep our secret credentials secure by storing them once (in GitHub) and using them in our workflows, instead of storing them locally on multiple machines. This ensures a more robust and secure CI/CD process for our new startup infrastructure.
-
-### Table of Contents
-
-1. [Azure RBAC Setup for GitHub Actions](#azure-rbac-setup-for-github-actions)  
+## **Table of Contents**
+1. [Introduction](#introduction)  
+2. [Azure RBAC Setup for GitHub Actions](#azure-rbac-setup-for-github-actions)  
    - [Creating a Service Principal](#creating-a-service-principal)  
    - [Assigning the Role](#assigning-the-role)  
-   - [Storing Credentials in GitHub Secrets](#storing-credentials-in-github-secrets)
-
-2. [Testing Azure Connectivity with a Simple Workflow](#testing-azure-connectivity-with-a-simple-workflow)  
+   - [Storing Credentials in GitHub Secrets](#storing-credentials-in-github-secrets)  
+3. [Testing Azure Connectivity with a Simple Workflow](#testing-azure-connectivity-with-a-simple-workflow)  
    - [Creating the GitHub Actions Workflow](#creating-the-github-actions-workflow)  
-   - [Confirming Connectivity](#confirming-connectivity)
-
-3. Deploy a resource group
-
-4. Set up modules directory
-
-5. [Tearing Down the Resource Group](#tearing-down-the-resource-group)  
-   - [Delete the Entire Resource Group](#delete-the-entire-resource-group)  
-   - [Removing Individual Modules (Optional)](#removing-individual-resources-optional)
-
-6. Preparing for tomorrow - Shared responsibility model and being a one-man startup - first we deploy app service with a nginx container, then we deploy minimum architecture?  
-Goal for next day is to deploy the easiest thing possible, ideally a container, how about linux-server obsidian container that can now have a public URL?  
-
+   - [Confirming Connectivity](#confirming-connectivity)  
+4. [Why Bicep?](#why-bicep)  
+5. [Repository File Tree & Bicep Modules](#repository-file-tree--bicep-modules)  
+   - [File Tree Overview](#file-tree-overview)  
+   - [Important GitHub Workflows](#important-github-workflows)  
+   - [Bicep Modules](#bicep-modules)  
+6. [Deploy a Resource Group and a Storage Account](#deploy-a-resource-group-and-a-storage-account)  
+   - [Creating a Resource Group](#creating-a-resource-group)  
+   - [Deploying a Storage Account](#deploying-a-storage-account)  
+7. [Tearing Down Resources](#tearing-down-resources)  
+   - [Deleting Modules Individually](#deleting-modules-individually)  
+   - [Deleting the Entire Resource Group](#deleting-the-entire-resource-group)  
+8. [Next Steps](#next-steps)
 
 ---
 
-## Azure RBAC Setup for GitHub Actions
+## **Introduction**
 
-### Creating a Service Principal
+On **Day 1**, we manually created a resource group and a virtual machine via the Azure CLI, learning how to provision and clean up basic Azure resources. For **Day 2**, we’re taking that knowledge further by automating our deployments with **GitHub Actions** and **Bicep** templates. We’ll:
 
-To allow GitHub Actions to interact with your Azure subscription, you’ll need a **Service Principal** (an identity used by apps or services to access Azure). 
+- Create a **Service Principal** and set up **RBAC** to give GitHub Actions permission to deploy resources in Azure.  
+- Explore a **sample repository structure** for Bicep modules and workflows.  
+- Deploy a **Storage Account** using your new CI/CD pipeline.  
+- Tear down modules and resource groups to avoid incurring unexpected costs.  
 
-1. Open your **Azure Cloud Shell** or local terminal configured with the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
+Tomorrow (Day 3), we’ll expand on this by setting up a recommended Azure environment for a small startup—complete with containers and additional services. For now, let’s get our foundational pipeline working.
+
+---
+
+## **Azure RBAC Setup for GitHub Actions**
+
+To allow GitHub Actions to interact with your Azure resources, you need a secure identity that can be used by your workflows.
+
+### **Creating a Service Principal**
+
+1. Open your **Azure Cloud Shell** (bash) or a local terminal with the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).  
 2. Run:
-
    ```bash
    az ad sp create-for-rbac \
      --name "github-actions-sp" \
      --role contributor \
-     --scopes /subscriptions/c7f59316-eb4d-431f-83d0-0dff4a6531db \
+     --scopes /subscriptions/<YOUR_SUBSCRIPTION_ID> \
      --sdk-auth
    ```
+   - Replace `<YOUR_SUBSCRIPTION_ID>` with the actual subscription ID (see Day 1 for finding your subscription with `az account list --output table`).  
+3. You’ll see a JSON output containing details for clientId, clientSecret, subscriptionId, tenantId, etc. **Copy that entire JSON**.  
 
-   **Important**: Replace `<YOUR_SUBSCRIPTION_ID>` with the ID of your subscription (found in the Day 1 steps with `az account list --output table`).
+### **Assigning the Role**
+- By using `--role contributor`, your Service Principal can create and manage resources.  
+- You can tweak this role if you need different permissions (e.g., **Reader**, **Owner**, or a custom role).
 
-3. You’ll get a JSON output like this:
+### **Storing Credentials in GitHub Secrets**
 
-   ```json
-   {
-     "clientId": "<GUID>",
-     "clientSecret": "<SECRET_VALUE>",
-     "subscriptionId": "<GUID>",
-     "tenantId": "<GUID>",
-     "activeDirectoryEndpointUrl": "https://login.microsoftonline.com",
-     "resourceManagerEndpointUrl": "https://management.azure.com/",
-     "activeDirectoryGraphResourceId": "https://graph.windows.net/",
-     "sqlManagementEndpointUrl": "https://management.core.windows.net:8443/",
-     "galleryEndpointUrl": "https://gallery.azure.com/",
-     "managementEndpointUrl": "https://management.core.windows.net/"
-   }
-   ```
+1. In your **GitHub Repository**, go to **Settings** → **Secrets and variables** → **Actions**.  
+2. Create a **New repository secret** named `AZURE_CREDENTIALS`.  
+3. Paste the **entire JSON output** you copied from the service principal command into the **Value** field.  
+4. Save it.
 
-### Assigning the Role
-
-If you used the `--role contributor` flag above, your Service Principal has rights to create and manage resources. If you need more/less access, you could use roles like **Reader**, **Owner**, or custom roles. Adjust as needed.
-
-### Create an infra repo
-
-Go to https://github.com/ldraney/az-trial-infra/tree/0.0.0.1-DEC-23-2024.  
-Use it as a template and create your own repo.
-
-### Storing Credentials in GitHub Secrets
-
-Then, you need to add the json object from earlier, and store it so our GA workflows can contact our Azure subscription:
-1. Go to your **GitHub Repository** settings.  
-2. Click on **Secrets and variables** > **Actions**.  
-3. Create a **New repository secret** named `AZURE_CREDENTIALS`.  
-4. Copy the **entire JSON output** from the `az ad sp create-for-rbac` command and paste it into the **Value** field.  
-5. Save it.
-
-Great! Now GitHub has stored your Azure credentials securely. We’ll reference them in our workflows as `secrets.AZURE_CREDENTIALS`.
+Done! Your Azure credentials are now securely stored. Let’s test them.
 
 ---
 
-## Testing Azure Connectivity with a Simple Workflow
+## **Testing Azure Connectivity with a Simple Workflow**
 
-Before we start deploying fancy resources, let’s verify that GitHub Actions can indeed connect to Azure with our new credentials.
+Before we jump into big deployments, let’s verify your GitHub Actions can log in to Azure.
 
-### Creating the GitHub Actions Workflow
+### **Creating the GitHub Actions Workflow**
 
-Let's create a list-resource-groups.yml (there should already be one in your .github/workflows directory)
+Create or update a file in `.github/workflows/list-resource-groups.yml`:
 
 ```yaml
 name: Test Azure Connection
@@ -114,7 +95,6 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # validate and list relevant info
       - name: Show Subscription Name
         run: |
           az account show --query "{SubscriptionName:name}" -o json
@@ -122,86 +102,262 @@ jobs:
       - name: Show Available Resource Groups
         run: |
           az group list --query "[].name" -o table
-
 ```
 
-1. Commit and push your workflow file to the repository.  
-2. Go to the **Actions** tab, select **Test Azure Connection**, and run the workflow manually (click **Run workflow**).  
-3. Watch the logs. If everything is set up properly, you’ll see an Azure subscription ID in the output. Congratulations!
+### **Confirming Connectivity**
 
----
-## Why Bicep?
-
-To understand the value of infrastructure as code (IaC), Bicep, and whether Bicep is the right choice for your IaC, please go to: https://learn.microsoft.com/en-us/training/paths/fundamentals-bicep/
-
-As a principal, never make something more complicated than it needs to be.  At this point, Bicep will help us build out a general but fairly comprehensive infrastructure for our application.  Bicep has nice features such as diagrams in VS Code and managing the sequence and dependency of resources, so we can focus on the configurations we need rather than ensuring they are set up correctly.  
-
-If we need to get more specific with configurations, we can consider ARM templates or other forms of IaC.  
-
-Why Bicep or ARM over Terraform or other solutions?  All solutions will need to use the Azure Resource Manager's API to control Azure infrastructure, so preference based on familiarity is appropriate here.  I like to stick within the Microsoft ecosystem unless the value of an external option obviously outweighs Microsoft's integrated systems.  
-
-## Github Workflow to Deploy a RG 
-In the template repo you copied above, there is a workflow `.github/workflows/create-resource-group.yml`.  We will be using this to create a resource group.  
-In the Actions tab, go to the workflow that says 'Create Azure Resource Group', and choose your name.  I chose 'dev'.  
-
-
-## Deploying a Storage Account
-
-
-
-
-### Test the workflow by running it in your GitHub Actions.
-
-
-### Confirm that both the resource group and the VM are successfully created.
+1. Commit & push to your repo.  
+2. Go to **Actions** → **Test Azure Connection** → **Run workflow**.  
+3. Check the logs. You should see your subscription name and a list of resource groups. If yes, everything is set!
 
 ---
 
-## Tearing Down the Resource Group
+## **Why Bicep?**
 
-We don’t want to forget about costs, so let’s create another workflow that cleans up resources once we’re done.
+Bicep is **Microsoft’s domain-specific language** (DSL) for declaring Azure resources in a clean, familiar syntax. It builds on ARM templates but is more concise and user-friendly. It also integrates seamlessly with Azure services and deployment tooling, making it a perfect candidate for an Azure-centric workflow.
 
-### Delete the Entire Resource Group
-
-1. Create a new file `.github/workflows/destroy-resources.yml`.
-2. Add this content:
-
-   ```yaml
-   name: Destroy Resources
-
-   on: [workflow_dispatch]
-
-   jobs:
-     destroy-resources:
-       runs-on: ubuntu-latest
-       steps:
-         - name: Checkout
-           uses: actions/checkout@v3
-
-         - name: Azure Login
-           uses: azure/login@v1
-           with:
-             creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-         - name: Delete Resource Group
-           run: |
-             az group delete --name MyResourceGroup --yes --no-wait
-   ```
-
-3. Running this workflow will remove **everything** in `MyResourceGroup`. If you want finer control, skip deleting the group and instead remove individual resources manually (like we did on **Day 1**).
-
-### Removing Individual Resources (Optional)
-
-If you prefer to remove resources one by one, you can use multiple `az resource delete ...` commands. But for now, the **Resource Group** approach is the simplest.
+- **Less JSON**: Bicep is easier to read/write than ARM templates.  
+- **Better tooling**: Visual Studio Code provides strong Bicep support, including IntelliSense.  
+- **Native Integration**: Fewer external dependencies compared to Terraform or other multi-cloud solutions (though those are also valid if you prefer them).
 
 ---
 
-## Preparing for Day 3
+## **Repository File Tree & Bicep Modules**
 
-### Minimal Full-Stack Architecture Preview
+### **File Tree Overview**
 
-Tomorrow, we’ll roll up our sleeves and deploy a **minimal full-stack architecture** for our startup. This will include setting up an **App Service**, a **Database**, and the **networking** pieces to tie it all together. We’ll do it all with Bicep and GitHub Actions so you can see how easy it is to scale up and tear down at will.
+Below is a recommended repo structure that includes workflows and a sample `storage-account` module:
 
-Stay tuned—exciting times ahead in the cloud!
+```
+infra-repo/
+├── .github/
+│   └── workflows/
+│       ├── create-resource-group.yml
+│       ├── deploy-modules.yml
+│       ├── delete-resource-group.yml
+│       └── delete-modules.yml
+├── modules/
+│   └── storage-account/
+│       ├── main.bicep
+│       ├── variables.bicep
+│       └── outputs.bicep
+└── README.md
+```
 
-**Hyped yet?** You’ve now created a GitHub Actions pipeline that securely connects to Azure, tested a simple command, deployed a VM via Bicep, and destroyed your resources to keep costs low. Day 3 will be all about that **minimal full-stack** deployment!
+### **Important GitHub Workflows**
+
+1. **create-resource-group.yml**: Creates a new Azure Resource Group.  
+2. **deploy-modules.yml**: Deploys Bicep modules (like the `storage-account`) into that resource group.  
+3. **delete-modules.yml**: Removes specific resources, leaving the RG intact.  
+4. **delete-resource-group.yml**: Nukes the entire resource group and everything in it.
+
+### **Bicep Modules**
+
+Within `modules/`, each component (e.g., `storage-account`) typically has:
+- **main.bicep**: The main deployment file with resource definitions.  
+- **variables.bicep**: Common or reusable variables (SKU, location, etc.).  
+- **outputs.bicep**: Exposes resource details (IDs, endpoints).
+
+---
+
+## **Deploy a Resource Group and a Storage Account**
+
+### **Creating a Resource Group**
+
+Your `.github/workflows/create-resource-group.yml` might look like this:
+
+```yaml
+name: Create Azure Resource Group
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group_name:
+        description: 'The name of the resource group to create'
+        required: true
+        default: 'MyResourceGroup'
+      location:
+        description: 'Azure region'
+        required: true
+        default: 'eastus'
+
+jobs:
+  create-resource-group:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Resource Group
+        run: |
+          az group create \
+            --name ${{ github.event.inputs.resource_group_name }} \
+            --location ${{ github.event.inputs.location }}
+```
+
+1. Run this workflow in the GitHub Actions UI.  
+2. Verify the new resource group appears under **Azure Portal** → **Resource groups**.
+
+### **Deploying a Storage Account**
+
+Create or update `.github/workflows/deploy-modules.yml`:
+
+```yaml
+name: Deploy Azure Modules
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group_name:
+        description: 'Resource group name'
+        required: true
+      base_name:
+        description: 'Base name for the storage account (unique suffix will be added)'
+        required: true
+      location:
+        description: 'Storage account location'
+        required: false
+        default: 'eastus'
+
+jobs:
+  deploy-modules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Storage Account
+        run: |
+          az deployment group create \
+            --resource-group ${{ github.event.inputs.resource_group_name }} \
+            --template-file modules/storage-account/main.bicep \
+            --parameters baseName=${{ github.event.inputs.base_name }} \
+                         location=${{ github.event.inputs.location }}
+```
+
+Within `modules/storage-account/main.bicep`:
+```bicep
+param baseName string
+param location string = resourceGroup().location
+param skuName string = 'Standard_LRS'
+param kind string = 'StorageV2'
+
+var storageAccountName = toLower('${baseName}${uniqueString(resourceGroup().id)}')
+
+resource storageAccount 'Microsoft.Storage/storageAccounts@2021-09-01' = {
+  name: storageAccountName
+  location: location
+  sku: {
+    name: skuName
+  }
+  kind: kind
+}
+
+output storageAccountId string = storageAccount.id
+output storageAccountName string = storageAccount.name
+```
+
+1. In GitHub Actions, find **Deploy Azure Modules** → **Run workflow**.  
+2. Pass in a resource group name (created above) and a **base name** (e.g., `stor`).  
+3. Confirm in the Azure Portal that a storage account has been created successfully.
+
+---
+
+## **Tearing Down Resources**
+
+Once you’re done testing, it’s important to remove resources to avoid unnecessary costs.
+
+### **Deleting Modules Individually**
+
+If you only want to remove a storage account (and keep the resource group), create `.github/workflows/delete-modules.yml`:
+
+```yaml
+name: Delete Storage Account
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group_name:
+        description: 'Resource group'
+        required: true
+      storage_account_name:
+        description: 'Name of the storage account'
+        required: true
+
+jobs:
+  delete-modules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Storage Account
+        run: |
+          az storage account delete \
+            --name ${{ github.event.inputs.storage_account_name }} \
+            --resource-group ${{ github.event.inputs.resource_group_name }} \
+            --yes
+```
+
+### **Deleting the Entire Resource Group**
+
+If you want to wipe everything at once:
+
+```yaml
+name: Delete Resource Group
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group_name:
+        description: 'Resource group name'
+        required: true
+
+jobs:
+  delete-resource-group:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Resource Group
+        run: |
+          az group delete \
+            --name ${{ github.event.inputs.resource_group_name }} \
+            --yes \
+            --no-wait
+```
+
+Check the Azure Portal or run `az group list -o table` to confirm it’s gone.
+
+---
+
+## **Next Steps**
+
+- **Explore Shared Responsibility**: As a one-man startup, it’s crucial to understand what Azure manages (like physical infrastructure) and what you manage (like OS patches, data protection).  
+- **App Service with Container**: Tomorrow (Day 3), we’ll deploy a minimal architecture including a containerized web app or an Nginx-based setup. This will give us an internet-accessible endpoint to further test.  
+- **Keep an Eye on Costs**: Always verify you’ve torn down resources you don’t need. Check your credit balance regularly in **Cost Management + Billing**.  
+
+That’s it for **Day 2**! You’ve established a robust foundation for automated deployments, leveraging GitHub Actions, Bicep, and secure RBAC in Azure. Tomorrow, we’ll continue to build on this momentum with a more advanced environment.
+
+Happy automating!
