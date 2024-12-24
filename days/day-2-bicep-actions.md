@@ -76,10 +76,10 @@ Before we jump into big deployments, let’s verify your GitHub Actions can log 
 
 ### **Creating the GitHub Actions Workflow**
 
-Create or update a file in `.github/workflows/list-resource-groups.yml`:
+Create or update a file in `.github/workflows/list-resource-groups.yml`.  This file will allow us to list our resource groups, which will be useful for resource management:
 
 ```yaml
-name: Test Azure Connection
+name: List Resource Groups
 
 on: [workflow_dispatch]
 
@@ -277,46 +277,10 @@ output storageAccountName string = storageAccount.name
 
 Once you’re done testing, it’s important to remove resources to avoid unnecessary costs.
 
-### **Deleting Modules Individually**
-
-If you only want to remove a storage account (and keep the resource group), create `.github/workflows/delete-modules.yml`:
-
-```yaml
-name: Delete Storage Account
-
-on:
-  workflow_dispatch:
-    inputs:
-      resource_group_name:
-        description: 'Resource group'
-        required: true
-      storage_account_name:
-        description: 'Name of the storage account'
-        required: true
-
-jobs:
-  delete-modules:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Login to Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Delete Storage Account
-        run: |
-          az storage account delete \
-            --name ${{ github.event.inputs.storage_account_name }} \
-            --resource-group ${{ github.event.inputs.resource_group_name }} \
-            --yes
-```
-
 ### **Deleting the Entire Resource Group**
 
-If you want to wipe everything at once:
+Tomorrow we will cover proper filetree modularization, so that we can continue to iterate our infrastructure without surprise costs; 
+But, for now, let's remove the resource group we created, which will delete all the resources within the group as well:
 
 ```yaml
 name: Delete Resource Group
@@ -348,15 +312,17 @@ jobs:
             --no-wait
 ```
 
-Check the Azure Portal or run `az group list -o table` to confirm it’s gone.
+Check the Azure Portal or run `az group list -o table` in the cloudshell to confirm it’s gone.
+You can also list resource groups with the workflow we created earlier. 
 
 ---
 
-## **Next Steps**
-
+## **Next Steps**A
+We are still not quite ready to deploy our startup application.  
+What we will try to accomplish tomorrow:
+- **Modularization and resource management**: We will use GitHub action artifacts, and environments, so that we can develop quickly without incurring unexpected costs.  
 - **Explore Shared Responsibility**: As a one-man startup, it’s crucial to understand what Azure manages (like physical infrastructure) and what you manage (like OS patches, data protection).  
-- **App Service with Container**: Tomorrow (Day 3), we’ll deploy a minimal architecture including a containerized web app or an Nginx-based setup. This will give us an internet-accessible endpoint to further test.  
-- **Keep an Eye on Costs**: Always verify you’ve torn down resources you don’t need. Check your credit balance regularly in **Cost Management + Billing**.  
+- **App Service with Container**: we’ll deploy a minimal architecture including a containerized web app or an Nginx-based setup. This will give us an internet-accessible endpoint to further test.  
 
 That’s it for **Day 2**! You’ve established a robust foundation for automated deployments, leveraging GitHub Actions, Bicep, and secure RBAC in Azure. Tomorrow, we’ll continue to build on this momentum with a more advanced environment.
 
