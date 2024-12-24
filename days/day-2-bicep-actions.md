@@ -18,7 +18,6 @@
    - [Creating a Resource Group](#creating-a-resource-group)  
    - [Deploying a Storage Account](#deploying-a-storage-account)  
 7. [Tearing Down Resources](#tearing-down-resources)  
-   - [Deleting Modules Individually](#deleting-modules-individually)  
    - [Deleting the Entire Resource Group](#deleting-the-entire-resource-group)  
 8. [Next Steps](#next-steps)
 
