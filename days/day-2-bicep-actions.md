@@ -316,13 +316,16 @@ You can also list resource groups with the workflow we created earlier.
 
 ---
 
-## **Next Steps**A
+## **Next Steps**
+
 We are still not quite ready to deploy our startup application.  
-What we will try to accomplish tomorrow:
+
+What we will try to accomplish tomorrow:  
+
 - **Modularization and resource management**: We will use GitHub action artifacts, and environments, so that we can develop quickly without incurring unexpected costs.  
 - **Explore Shared Responsibility**: As a one-man startup, it’s crucial to understand what Azure manages (like physical infrastructure) and what you manage (like OS patches, data protection).  
 - **App Service with Container**: we’ll deploy a minimal architecture including a containerized web app or an Nginx-based setup. This will give us an internet-accessible endpoint to further test.  
 
-That’s it for **Day 2**! You’ve established a robust foundation for automated deployments, leveraging GitHub Actions, Bicep, and secure RBAC in Azure. Tomorrow, we’ll continue to build on this momentum with a more advanced environment.
+That’s it for **Day 2**! You’ve established a robust foundation for automated deployments, leveraging GitHub Actions, Bicep, and secure RBAC in Azure. Tomorrow, we’ll continue to build on this momentum to get a little closer to the recommended startup stack. 
 
 Happy automating!
